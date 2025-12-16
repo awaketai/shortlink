@@ -1,0 +1,100 @@
+package shortener
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"shortlink/internal/idgen"
+	"shortlink/internal/storage"
+	"time"
+)
+
+// 核心业务逻辑
+// 职责：实现创建短链接，获取场链接等核心业务流程，编排对idgen.Generator和storage.Store的调用
+// 内聚性：聚焦核心短链接业务逻辑
+//
+// SOLID原则
+// SRP(单一职责)：shortener包专注于业务编排，将ID生成和存储的具体实现委托给其他包
+// DIP(依赖倒置原则)：
+
+type Config struct {
+	Store         *storage.Store
+	Generator     *idgen.Generator
+	MaxGenAttemps int
+}
+
+type Service struct {
+	store          *storage.Store
+	generator      *idgen.Generator
+	maxGenAttempts int
+}
+
+func NewService(cfg Config) *Service {
+	if cfg.Store == nil || cfg.Generator == nil {
+		log.Fatal("storage and generator are required")
+	}
+	if cfg.MaxGenAttemps <= 0 {
+		cfg.MaxGenAttemps = 3
+	}
+
+	return &Service{
+		store:          cfg.Store,
+		generator:      cfg.Generator,
+		maxGenAttempts: cfg.MaxGenAttemps,
+	}
+}
+
+func (s *Service) CreateShortLink(ctx context.Context, longURL string) (string, error) {
+	if longURL == "" {
+		return "", fmt.Errorf("longURL cannot be empty")
+	}
+	var shortCode string
+	for i := range s.maxGenAttempts {
+		log.Printf("DEBUG: Attempting to generate short code,attempt %d,longURL: %s \n", i+1, longURL)
+		code, genErr := s.generator.GenerateShortCode(ctx, longURL)
+		if genErr != nil {
+			return "", fmt.Errorf("attempt %d:failed to generate short code:%w", i+1, genErr)
+		}
+		shortCode = code
+
+		linkToSave := storage.Link{
+			ShortCode:  shortCode,
+			LongURL:    longURL,
+			VisitCount: 0,
+			CreatedAt:  time.Now().UTC(),
+		}
+		saveErr := s.store.Save(ctx, linkToSave)
+		if saveErr != nil {
+			if errors.Is(saveErr, storage.ErrShortCodeExists) {
+				log.Printf("WARN: Short code collision,retrying,Attempt: %d Code:%s\n", i+1, shortCode)
+				continue
+			}
+			return "", fmt.Errorf("attempt %d:failed to save short link:%w", i+1, saveErr)
+		}
+
+		return shortCode, nil
+	}
+
+	return "", fmt.Errorf("failed to generate short code after %d attempts", s.maxGenAttempts)
+}
+
+func (s *Service) GetAndTrackLongURL(ctx context.Context, shortCode string) (string, error) {
+	if shortCode == "" {
+		return "", fmt.Errorf("shortCode cannot be empty")
+	}
+	link, err := s.store.FindByShortCode(ctx, shortCode)
+	if err != nil {
+		return "", fmt.Errorf("failed to get long url:%w", err)
+	}
+
+	go func(sc string, currentCount int64) {
+		bgCtx := context.Background()
+		if err := s.store.IncrementVisitCount(bgCtx, sc); err != nil {
+			log.Printf("ERROR: Failed to increment visit count (async).ShortCode: %s,Error:%v", sc, err)
+		}
+		log.Printf("INFO: Visit count incremented successfully.ShortCode: %s,CurrentCount:%d", sc, currentCount+1)
+	}(shortCode, link.VisitCount)
+
+	return link.LongURL, nil
+}
