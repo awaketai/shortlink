@@ -18,16 +18,28 @@ import (
 // SRP(单一职责)：shortener包专注于业务编排，将ID生成和存储的具体实现委托给其他包
 // DIP(依赖倒置原则)：
 
+var (
+	ErrInvalidLongURL            = errors.New("shortener: long URL is invalid or empty.")
+	ErrShortCodeTooShort         = errors.New("shortener: short code is too short or invalid.")
+	ErrShortCodeGenerationFailed = errors.New("shortener: failed to generate short code.")
+	ErrLinkNotFound              = errors.New("shortener: link not found.")
+	ErrConflict                  = errors.New("shortener: conflict,possibly short code exists or generation failed after retries.")
+)
+
 type Config struct {
-	Store         *storage.Store
-	Generator     *idgen.Generator
-	MaxGenAttemps int
+	Store           storage.Storer
+	Generator       idgen.Generator
+	Logger          *log.Logger
+	MaxGenAttemps   int
+	MinShortCodeLen int
 }
 
 type Service struct {
-	store          *storage.Store
-	generator      *idgen.Generator
-	maxGenAttempts int
+	store           storage.Storer
+	generator       idgen.Generator
+	logger          *log.Logger
+	maxGenAttempts  int
+	minShortCodeLen int
 }
 
 func NewService(cfg Config) *Service {
@@ -37,11 +49,16 @@ func NewService(cfg Config) *Service {
 	if cfg.MaxGenAttemps <= 0 {
 		cfg.MaxGenAttemps = 3
 	}
+	if cfg.MinShortCodeLen <= 0 {
+		cfg.MinShortCodeLen = 5
+	}
 
 	return &Service{
-		store:          cfg.Store,
-		generator:      cfg.Generator,
-		maxGenAttempts: cfg.MaxGenAttemps,
+		store:           cfg.Store,
+		generator:       cfg.Generator,
+		logger:          cfg.Logger,
+		maxGenAttempts:  cfg.MaxGenAttemps,
+		minShortCodeLen: cfg.MinShortCodeLen,
 	}
 }
 

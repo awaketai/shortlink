@@ -11,15 +11,15 @@ import (
 
 const defaultCodeLength = 7
 
-type Generator struct {
+type SimpleGenerator struct {
 }
 
-func NewGenerator() *Generator {
+func NewGenerator() *SimpleGenerator {
 	rand.New(rand.NewSource(time.Now().UnixNano()))
-	return &Generator{}
+	return &SimpleGenerator{}
 }
 
-func (g *Generator) GenerateShortCode(ctx context.Context, longURL string) (string, error) {
+func (g *SimpleGenerator) GenerateShortCode(ctx context.Context, longURL string) (string, error) {
 	if longURL == "" {
 		return "", fmt.Errorf("idgen: longURL cannot be emptty for code generation")
 	}

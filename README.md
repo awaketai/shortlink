@@ -201,3 +201,10 @@ MIT License
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 短链接服务完善
+
+- 精化核心 Go API，对接口的易用性、安全性、兼容性、高效性、惯例性进行优化
+- 错误处理设计：定义业务错误类型
+- 并发模型探索：讨论核心流程中可能涉及的入口并发模型、内部协作模式以及 goroutine 声名周期管理(特别是context的使用)
+- 设计蓝图总结：将所有设计决策整合，形成一个更完善、可供后续实现参考的设计方案

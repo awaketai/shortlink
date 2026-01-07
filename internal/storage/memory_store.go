@@ -2,32 +2,18 @@ package storage
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 )
 
-// Link 现在属于storage包，如果shortener.service要操作link
-// 就需要引入storage包并使用storage.Link，这会产生一个从业务核心到具体存储实现的依赖
-// 不太理想，这是后续接口抽象要解决的问题
-type Link struct {
-	ShortCode  string
-	LongURL    string
-	VisitCount int64
-	CreatedAt  time.Time
-}
-
-var ErrNotFound = errors.New("storage: link not found")
-var ErrShortCodeExists = errors.New("storage: short code already exists")
-
 type Store struct {
 	mu    sync.RWMutex
-	links map[string]Link
+	links map[string]*Link
 }
 
 func NewStore() *Store {
 	return &Store{
-		links: make(map[string]Link),
+		links: make(map[string]*Link),
 	}
 }
 
@@ -40,12 +26,12 @@ func (s *Store) Save(ctx context.Context, link Link) error {
 	}
 
 	link.CreatedAt = time.Now()
-	s.links[link.ShortCode] = link
+	s.links[link.ShortCode] = &link
 
 	return nil
 }
 
-func (s *Store) FindByShortCode(ctx context.Context, shortCode string) (Link, error) {
+func (s *Store) FindByShortCode(ctx context.Context, shortCode string) (*Link, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -53,7 +39,7 @@ func (s *Store) FindByShortCode(ctx context.Context, shortCode string) (Link, er
 		return link, nil
 	}
 
-	return Link{}, ErrNotFound
+	return nil, ErrNotFound
 }
 
 func (s *Store) IncrementVisitCount(ctx context.Context, shortCode string) error {
