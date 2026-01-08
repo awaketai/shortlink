@@ -20,7 +20,7 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.Println("Starting shortlink service", "version", "shortlink-demo1")
 	// 初始化依赖
-	storeImpl := storage.NewStore()
+	storeImpl := storage.NewMemoryStore()
 	defer func() {
 		if err := storeImpl.Close(); err != nil {
 			log.Println("Failed to close storage:", err)

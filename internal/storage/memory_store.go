@@ -6,18 +6,18 @@ import (
 	"time"
 )
 
-type Store struct {
+type MemoryStore struct {
 	mu    sync.RWMutex
 	links map[string]*Link
 }
 
-func NewStore() *Store {
-	return &Store{
+func NewMemoryStore() *MemoryStore {
+	return &MemoryStore{
 		links: make(map[string]*Link),
 	}
 }
 
-func (s *Store) Save(ctx context.Context, link Link) error {
+func (s *MemoryStore) Save(ctx context.Context, link Link) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -31,7 +31,7 @@ func (s *Store) Save(ctx context.Context, link Link) error {
 	return nil
 }
 
-func (s *Store) FindByShortCode(ctx context.Context, shortCode string) (*Link, error) {
+func (s *MemoryStore) FindByShortCode(ctx context.Context, shortCode string) (*Link, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -42,7 +42,7 @@ func (s *Store) FindByShortCode(ctx context.Context, shortCode string) (*Link, e
 	return nil, ErrNotFound
 }
 
-func (s *Store) IncrementVisitCount(ctx context.Context, shortCode string) error {
+func (s *MemoryStore) IncrementVisitCount(ctx context.Context, shortCode string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -55,6 +55,6 @@ func (s *Store) IncrementVisitCount(ctx context.Context, shortCode string) error
 	return ErrNotFound
 }
 
-func (log *Store) Close() error {
+func (log *MemoryStore) Close() error {
 	return nil
 }

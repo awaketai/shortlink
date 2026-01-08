@@ -7,6 +7,7 @@ import (
 	"log"
 	"shortlink/internal/idgen"
 	"shortlink/internal/storage"
+	"strings"
 	"time"
 )
 
@@ -63,8 +64,8 @@ func NewService(cfg Config) *Service {
 }
 
 func (s *Service) CreateShortLink(ctx context.Context, longURL string) (string, error) {
-	if longURL == "" {
-		return "", fmt.Errorf("longURL cannot be empty")
+	if strings.TrimSpace(longURL) == "" {
+		return "", ErrInvalidLongURL
 	}
 	var shortCode string
 	for i := range s.maxGenAttempts {
@@ -74,6 +75,14 @@ func (s *Service) CreateShortLink(ctx context.Context, longURL string) (string, 
 			return "", fmt.Errorf("attempt %d:failed to generate short code:%w", i+1, genErr)
 		}
 		shortCode = code
+		if len(shortCode) < s.minShortCodeLen {
+			s.logger.Printf("WARN: Generated short code too short, retrying. Code: %s, Attempt: %d\n", shortCode, i+1)
+			if i < s.maxGenAttempts {
+				continue
+			} else {
+				break
+			}
+		}
 
 		linkToSave := storage.Link{
 			ShortCode:  shortCode,
@@ -83,7 +92,7 @@ func (s *Service) CreateShortLink(ctx context.Context, longURL string) (string, 
 		}
 		saveErr := s.store.Save(ctx, linkToSave)
 		if saveErr != nil {
-			if errors.Is(saveErr, storage.ErrShortCodeExists) {
+			if errors.Is(saveErr, storage.ErrShortCodeExists) && i < s.maxGenAttempts-1 {
 				log.Printf("WARN: Short code collision,retrying,Attempt: %d Code:%s\n", i+1, shortCode)
 				continue
 			}
@@ -97,12 +106,15 @@ func (s *Service) CreateShortLink(ctx context.Context, longURL string) (string, 
 }
 
 func (s *Service) GetAndTrackLongURL(ctx context.Context, shortCode string) (string, error) {
-	if shortCode == "" {
-		return "", fmt.Errorf("shortCode cannot be empty")
+	if len(shortCode) < s.minShortCodeLen {
+		return "", ErrShortCodeTooShort
 	}
 	link, err := s.store.FindByShortCode(ctx, shortCode)
 	if err != nil {
-		return "", fmt.Errorf("failed to get long url:%w", err)
+		s.logger.Printf("INFO: Short code not found in store. ShortCode: %s\n", shortCode)
+		if errors.Is(err, storage.ErrNotFound) {
+			return "", fmt.Errorf("for code '%s': %w", shortCode, ErrLinkNotFound)
+		}
 	}
 
 	go func(sc string, currentCount int64) {
@@ -114,4 +126,12 @@ func (s *Service) GetAndTrackLongURL(ctx context.Context, shortCode string) (str
 	}(shortCode, link.VisitCount)
 
 	return link.LongURL, nil
+}
+
+func preview(s string, maxLen int) string {
+	if len(s) > maxLen {
+		return s[:maxLen] + "..."
+	}
+
+	return s
 }
