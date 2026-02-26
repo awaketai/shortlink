@@ -1,0 +1,40 @@
+# 在每次有新的PR被创建时，自动触发 Claude Code，对代码变更进行一次快速的审查
+#
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # 需要读取代码
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # 获取足够的历史记录以便进行diff
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.0"
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Configure Claude Code with Zhipu AI
+        env:
+          ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
+        run: |
+          mkdir -p ~/.claude
+          echo '{
+            "env": {
+              "ANTHROPIC_BASE_URL": "https://open.bigmodel.cn/api/anthropic",
+              "ANTHROPIC_API_KEY": "'"$ZHIPU_API_KEY"'"
+            }
+          }' > ~/.claude/settings.json
