@@ -3,5 +3,9 @@
     "allow": [
       "Skill(go-code-reviewer)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "github"
+  ],
+  "enableAllProjectMcpServers": true
 }

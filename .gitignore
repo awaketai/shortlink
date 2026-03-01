@@ -3,3 +3,6 @@
 .idea
 shortlink
 *.log
+./claude/settings.local.json
+opencode.json
+.mcp.json
